@@ -12,7 +12,7 @@ php scrap-indices.php
 
 data populated
 
-hit http://localhost/stocks/insight.php in browser to get the data# stocks
+hit http://localhost/stocks/insight.php in browser to get the data
 
 *every month - just drop table / empty database before running the scrap-indices.php
 
