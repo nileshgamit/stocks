@@ -4,6 +4,8 @@ Code Directory - /var/www/html/stocks/ (or your web directory)
 
 Create empty database "stocks" to create table & populate data by scrap-indices.php
 
+update common.php/dbConnect() with your DB credentials
+
 cd /var/www/html/stocks/
 
 php scrap-indices.php
