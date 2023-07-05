@@ -248,7 +248,7 @@ function getStockDetails($index, $stocks) {
 	return $data;
 }
 
-function getAlphaValueStocks($stocks, $alpha_stocks, $value_stocks, $dividend_stocks, $quality = true) {
+function getAlphaValueStocks($stocks, $lv_stocks, $alpha_stocks, $value_stocks, $dividend_stocks, $quality = true) {
 
 	if(empty($stocks)) {
 		return;
@@ -256,6 +256,11 @@ function getAlphaValueStocks($stocks, $alpha_stocks, $value_stocks, $dividend_st
 	
 	$data = [];
 	foreach($stocks as &$stock) {
+		
+		$lv = '';
+		if(in_array($stock['symbol'], $lv_stocks)) {
+			$lv = 'low volatile';
+		}
 			
 		$alpha = '';
 		if(in_array($stock['symbol'], $alpha_stocks)) {
@@ -278,6 +283,7 @@ function getAlphaValueStocks($stocks, $alpha_stocks, $value_stocks, $dividend_st
 			}
 		}
 		
+		$stock['lv'] = $lv;
 		$stock['alpha'] = $alpha;
 		$stock['value'] = $value;
 		$stock['dividend'] = $dividend;
@@ -294,13 +300,14 @@ function tblStockDetails($index, $heading, $stocks) {
 		return;
 	}
 	
-	$component = "<center><h3>$index</h3> <span style='color:#3498DB'>".count($stocks)." ".$heading."</span></center>";
+	$component = "<center><h1>$index</h1> <span style='color:#2E86C1;'>".count($stocks)." ".$heading."</span></center>";
 	$component .= "<div style='vertical-align: top; padding-top: 10px; padding-bottom: 10px;'>
 		<table width=100% border=1 style='border-collapse: collapse; border-spacing: 30px;'>";
 
 	$component .= "<tr>
 		<th style='vertical-align: top'>Company</th>
 		<th style='vertical-align: top'>Symbol</th>
+		<th style='vertical-align: top'>Volatility</th>
 		<th style='vertical-align: top'>Alpha</th>
 		<th style='vertical-align: top'>Value</th>
 		<th style='vertical-align: top'>Dividend</th>
@@ -315,27 +322,144 @@ function tblStockDetails($index, $heading, $stocks) {
 		if($industry != $stock['industry']) {
 			$industry = $stock['industry'];
 			$component .= "<tr>
-				<td colspan='6' style='text-align: center'><b>".$stock['industry']."</b></td>
+				<td colspan='7' style='text-align: center'><b>".$stock['industry']."</b></td>
 			</tr>";
 		}
 		
-		$total_weight = $total_weight + $stock['weight'];
+		$weight = $stock['weight'];
 		
+		$total_weight = $total_weight + $weight;
+		
+		$bgColor = ''; $color = '';
+		if($weight >= 5) {
+			$bgColor = '#2874A6'; $color = '#FFF';
+		} else if($weight >= 3) {
+			$bgColor = '#3498DB'; $color = '#FFF';
+		} else if($weight >= 1) {
+			$bgColor = '#AED6F1'; $color = '';
+		} else if($weight > 0) {
+			$bgColor = '#EBF5FB'; $color = '';
+		}
+				
 		$component .= "<tr>
 			<td style='vertical-align: top'>".$stock['company']."</td>
 			<td style='vertical-align: top'>".$stock['symbol']."</td>
-			<td style='vertical-align: top; text-align: center;'>".$stock['alpha']."</td>
-			<td style='vertical-align: top; text-align: center;'>".$stock['value']."</td>
-			<td style='vertical-align: top; text-align: center;' text-align: center;>".$stock['dividend']."</td>
-			<td style='vertical-align: top; text-align: right;'>".$stock['weight']."</td>
+			<td style='vertical-align: top; text-align: center; color: #138D75;'>".$stock['lv']."</td>
+			<td style='vertical-align: top; text-align: center; color: #3498DB;'>".$stock['alpha']."</td>
+			<td style='vertical-align: top; text-align: center; color: #E74C3C;'>".$stock['value']."</td>
+			<td style='vertical-align: top; text-align: center; color: #9B59B6;'>".$stock['dividend']."</td>
+			<td style='vertical-align: top; text-align: right; background-color: $bgColor; color: $color;'>".$stock['weight']."</td>
 		</tr>";	
 	}
 	
 	$component .= "<tr>
-		<td colspan='6' style='text-align: center'>Total Weight in $index: <b>$total_weight%</b></td>
+		<td colspan='7' style='text-align: center'>Total Weight in $index: <b>$total_weight%</b></td>
 	</tr>";
 	
 	$component .= "</table></div>";
 	
 	return $component;
 }
+
+function getUniqueIndustries() {
+	
+	global $db;
+	
+	$sql = "SELECT DISTINCT `industry` FROM `indices_stocks` ORDER BY industry";
+	
+	$result = @mysqli_query($db, $sql);
+	if (!$result) {
+		return 0;
+	}
+	
+	$data = [];
+	while ($obj = $result->fetch_assoc()) {
+		if(!empty($obj['industry'])) {
+			$data[] = $obj['industry'];
+		}
+	}
+
+	if (!$data) {
+		return [];
+	}
+	
+	return $data;	
+}
+
+function getIndustryWeightForIndex($industry, $indices) {
+	
+	global $db;
+	
+	$data = [];
+	
+	foreach($indices as $index) {
+		
+		$data[$index] = '0.00';
+		
+		$sql = "SELECT `industry`, ROUND(SUM(`weight`), 2) as total_weight FROM `indices_stocks` WHERE `index` = '$index' and `industry` = '$industry' GROUP BY industry ORDER BY total_weight DESC";
+	
+		$result = @mysqli_query($db, $sql);
+		if (!$result) {
+			continue;
+		}
+			
+		while ($obj = $result->fetch_assoc()) {
+			$data[$index] = $obj['total_weight'];
+		}
+	}
+	
+	if (!$data) {
+		return [];
+	}
+	
+	return $data;	
+}
+
+function tblIndustryDetails($industries, $indices) {
+	
+	if(empty($industries)) {
+		return;
+	}
+	
+	$component = "<center><h1>Industry Index Weight (%)</h1></center>";
+	$component .= "<div style='vertical-align: top; padding-top: 10px; padding-bottom: 10px;'>
+		<table width=100% border=1 style='border-collapse: collapse; border-spacing: 30px;'>";
+
+	$component .= "<tr>
+		<th>Industry</th>";	
+		foreach($indices as $index) {
+			$component .= "<th>$index</th>";
+		}		
+		$component .= "</tr>";
+		
+	foreach($industries as $industry => $data) {
+		$component .= "<tr>
+			<td style='vertical-align: top'>$industry</td>";
+			foreach($data as $index => $weight) {
+				
+				$bgColor = ''; $color = '';
+				if($weight >= 30) {
+					$bgColor = '#2874A6'; $color = '#FFF';
+				} else if($weight >= 20) {
+					$bgColor = '#3498DB'; $color = '#FFF';
+				} else if($weight >= 15) {
+					$bgColor = '#85C1E9'; $color = '';
+				} else if($weight >= 10) {
+					$bgColor = '#AED6F1'; $color = '';
+				} else if($weight >= 5) {
+					$bgColor = '#D6EAF8'; $color = '';
+				} else if($weight > 0) {
+					$bgColor = '#EBF5FB'; $color = '';
+				}
+				
+				$component .= "<td style='text-align: right; background-color: $bgColor; color: $color;'>$weight</th>";
+			}
+		$component .= "</tr>";
+	}
+	
+	$component .= "</table></div>";
+	
+	return $component;
+}
+
+
